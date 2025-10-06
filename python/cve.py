@@ -273,8 +273,26 @@ class AWSReporter(AlertReporter):
                 _check_aws_present.drop()
 
             _check_aws_present()
+
         except Exception as e:
             LOGGER.error(f"aws binary not accessible: {e}")
+            raise
+
+        try:
+
+            @cache_disk(expire=36000)
+            def _check_aws_ecr_accessible(profile):
+                command = ["aws"]
+                if profile:
+                    command += ["--profile", profile]
+                command += ["ecr", "describe-repositories"]
+                return json.loads(check_output(command))
+
+            if redo_check:
+                _check_aws_ecr_accessible.drop(config.cve.aws_profile)
+            _check_aws_ecr_accessible(config.cve.aws_profile)
+        except Exception as e:
+            LOGGER.error(f"aws ecr not accessible: {e}")
             raise
 
     @property
