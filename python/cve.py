@@ -725,6 +725,7 @@ def show(export_org, limit, short, shorter):
             "artifact": alert.artifact.raw,
             "report_id": alert.report.id,
             "alert": alert.raw,
+            "summary": alert.summary,
         }
         if export_org:
             print(
