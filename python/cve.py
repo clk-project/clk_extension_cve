@@ -149,7 +149,9 @@ class ScoutReporter(AlertReporter):
         def _alert(artifact, alert, vulnerability):
             return Alert(
                 artifact=Artifact(
-                    digest=artifact["digest"], raw=artifact, name=artifact["name"]
+                    digest=f"{artifact['name']}@{artifact['digest']}",
+                    raw=artifact,
+                    name=artifact["name"],
                 ),
                 object={
                     "purl": alert.get("purl"),
