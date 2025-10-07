@@ -233,25 +233,28 @@ class ProjectDiscoveryReporter(AlertReporter):
                 raw=alert["host"],
             )
 
+        def build_alert(alert):
+            return Alert(
+                summary=alert["description"],
+                severity=alert["severity"],
+                artifact=build_artifact(alert),
+                object={
+                    "tags": alert.get("tags"),
+                },
+                report=Report(
+                    id=alert["template_id"],
+                    url=alert.get("template_url", alert.get("reference", [None])[0]),
+                ),
+                raw=alert,
+            )
+
         for scan in _projectdiscovery_scans(config.project)["data"]:
             scan = scan["scan_id"]
             if config.cve.refresh:
                 _projectdiscovery_alerts.drop(config.project, scan)
 
             yield from [
-                Alert(
-                    summary=alert["description"],
-                    severity=alert["severity"],
-                    artifact=build_artifact(alert),
-                    object={
-                        "tags": alert["tags"],
-                    },
-                    report=Report(
-                        id=alert["template_id"],
-                        url=alert["template_url"],
-                    ),
-                    raw=alert,
-                )
+                build_alert(alert)
                 for alert in _projectdiscovery_alerts(config.project, scan)
             ]
 
