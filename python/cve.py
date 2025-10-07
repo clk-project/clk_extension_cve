@@ -202,7 +202,7 @@ class ProjectDiscoveryReporter(AlertReporter):
         super().__init__(*args, **kwargs)
 
     def sanity_check(self, redo_check=False):
-        if not get_secret("apikey@projectdiscovery"):
+        if not get_secret("PDCP_API_KEY"):
             raise ValueError("No API key for projectdiscovery")
 
     def alerts(self) -> Iterator[Alert]:
@@ -210,7 +210,7 @@ class ProjectDiscoveryReporter(AlertReporter):
         def _projectdiscovery_scans(project):
             return requests.get(
                 "https://api.projectdiscovery.io/v1/scans",
-                headers={"X-API-Key": get_secret("apikey@projectdiscovery")},
+                headers={"X-API-Key": get_secret("PDCP_API_KEY")},
             ).json()
 
         if config.cve.refresh:
