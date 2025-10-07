@@ -22,6 +22,7 @@ from clk.decorators import (
     option,
 )
 from clk.lib import (
+    call,
     check_output,
     get_secret,
     json_dumps,
@@ -84,8 +85,62 @@ class ScoutReporter(AlertReporter):
         except Exception as e:
             LOGGER.error(f"docker scout binary not accessible: {e}")
             raise
+        if (
+            config.cve.state.get("scout", {}).get("registry", {}).get("provider")
+            == "aws"
+        ):
+            AWSReporter().sanity_check(redo_check)
+
+            try:
+
+                @cache_disk(expire=36000)
+                def _check_aws_ecr_accessible(profile):
+                    command = ["aws"]
+                    if profile:
+                        command += ["--profile", profile]
+                    command += ["ecr", "describe-repositories"]
+                    return json.loads(check_output(command))
+
+                if redo_check:
+                    _check_aws_ecr_accessible.drop(config.cve.aws_profile)
+                _check_aws_ecr_accessible(config.cve.aws_profile)
+            except Exception as e:
+                LOGGER.error(f"aws ecr not accessible: {e}")
+                raise
 
     def alerts(self) -> Iterator[Alert]:
+        @cache_disk(expire=12 * 3600)  # 12 hours
+        def _aws_docker_login(project, profile):
+            LOGGER.info(f"Configuring docker to login to aws profile {profile}")
+            # password = check_output(["aws", "ecr", "get-login-password"])
+            command = ["aws"]
+            if profile:
+                command += ["--profile", profile]
+            command += ["ecr", "get-login-password"]
+            password = check_output(command)
+            servers = (
+                config.cve.state.get("scout", {}).get("registry", {}).get("servers", [])
+            )
+            for server in servers:
+                # login providing the password on the command line with
+                # --password
+                command = [
+                    "docker",
+                    "login",
+                    server,
+                    "--username",
+                    "AWS",
+                    "--password",
+                    password,
+                ]
+                call(command)
+
+        if (
+            config.cve.state.get("scout", {}).get("registry", {}).get("provider")
+            == "aws"
+        ):
+            _aws_docker_login(config.project, config.cve.aws_profile)
+
         @cache_disk(expire=360000)
         def _scout_reports(project, image):
             LOGGER.info(f"Getting scout information for {image}")
