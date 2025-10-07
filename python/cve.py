@@ -712,7 +712,6 @@ def doctor(refresh):
         "Force ignore filters and use ALL reporters or the doctor will say wrong results"
     )
     config.cve.ignore_config_filters = True
-    cve.reporter = [reporter.name for reporter in cve._reporters]
 
     current_reports = set(alert.report.id for _, alert in cve.walk())
     dismissed_reports = set()
