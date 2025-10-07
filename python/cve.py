@@ -146,7 +146,12 @@ class ScoutReporter(AlertReporter):
             LOGGER.info(f"Getting scout information for {image}")
             return json.loads(check_output(f"docker scout cves {image} --format sbom"))
 
-        def _alert(artifact, alert, vulnerability):
+        @cache_disk(expire=360000)
+        def _scout_recommendations(project, image):
+            LOGGER.info(f"Getting scout recommendations for {image}")
+            return check_output(f"docker scout recommendations {image}")
+
+        def _alert(artifact, alert, vulnerability, image):
             return Alert(
                 artifact=Artifact(
                     digest=f"{artifact['name']}@{artifact['digest']}",
@@ -161,7 +166,7 @@ class ScoutReporter(AlertReporter):
                     url=vulnerability["url"],
                 ),
                 severity=vulnerability["cvss"]["severity"].lower(),
-                summary=vulnerability.get("description", "NA"),
+                summary=f"{vulnerability.get('description', 'NA')}\n# Recommendations\n{_scout_recommendations(config.project, image)}",
                 raw=vulnerability,
             )
 
@@ -180,6 +185,7 @@ class ScoutReporter(AlertReporter):
                 _scout_reports(config.project, image)["source"]["image"],
                 alert,
                 vulnerability,
+                image,
             )
             for image in list_images()
             for alert in list_vulnerabilities(image)
