@@ -75,20 +75,21 @@ class ScoutReporter(AlertReporter):
 
             @cache_disk(expire=36000)
             def _check_scout_present():
-                return check_output(["docker-scout", "-h"])
+                return check_output(["docker scout", "-h"])
 
             if redo_check:
                 _check_scout_present.drop()
             _check_scout_present()
+
         except Exception as e:
-            LOGGER.error(f"docker-scout binary not accessible: {e}")
+            LOGGER.error(f"docker scout binary not accessible: {e}")
             raise
 
     def alerts(self) -> Iterator[Alert]:
         @cache_disk(expire=360000)
         def _scout_reports(project, image):
             LOGGER.info(f"Getting scout information for {image}")
-            return json.loads(check_output(f"docker-scout cves {image} --format sbom"))
+            return json.loads(check_output(f"docker scout cves {image} --format sbom"))
 
         def _alert(artifact, alert, vulnerability):
             return Alert(
