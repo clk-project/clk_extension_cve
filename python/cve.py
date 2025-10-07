@@ -248,15 +248,15 @@ class ProjectDiscoveryReporter(AlertReporter):
                 raw=alert,
             )
 
-        for scan in _projectdiscovery_scans(config.project)["data"]:
-            scan = scan["scan_id"]
-            if config.cve.refresh:
-                _projectdiscovery_alerts.drop(config.project, scan)
+        scan = _projectdiscovery_scans(config.project)["data"][0]
+        scan = scan["scan_id"]
+        if config.cve.refresh:
+            _projectdiscovery_alerts.drop(config.project, scan)
 
-            yield from [
-                build_alert(alert)
-                for alert in _projectdiscovery_alerts(config.project, scan)
-            ]
+        yield from [
+            build_alert(alert)
+            for alert in _projectdiscovery_alerts(config.project, scan)
+        ]
 
 
 class AWSReporter(AlertReporter):
