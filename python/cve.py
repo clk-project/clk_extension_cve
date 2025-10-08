@@ -597,6 +597,7 @@ class CVEConfig:
     default=(Path(config.project) / "cve.yaml") if config.project else None,
     expose_class=CVEConfig,
     type=Path,
+    required=True,
     help="Where the config file resides",
 )
 @option(
