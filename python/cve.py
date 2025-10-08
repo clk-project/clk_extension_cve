@@ -267,7 +267,11 @@ class ProjectDiscoveryReporter(AlertReporter):
 
     def sanity_check(self, redo_check=False):
         if not get_secret("PDCP_API_KEY"):
-            raise ValueError("No API key for projectdiscovery")
+            raise ValueError(
+                "No API key for projectdiscovery."
+                " Please add one using"
+                " 'clk secret set PDCP_API_KEY'"
+            )
 
     def alerts(self) -> Iterator[Alert]:
         @cache_disk(expire=36000)
@@ -581,6 +585,10 @@ class CVEConfig:
         if self._path.exists():
             self._state = yaml.load(self._path)
         else:
+            LOGGER.info(
+                "First time using clk cve?"
+                f" Please edit the file at {self._path} to configure it"
+            )
             self.save()
 
     @property
