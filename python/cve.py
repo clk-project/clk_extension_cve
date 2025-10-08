@@ -156,7 +156,7 @@ class ScoutReporter(AlertReporter):
                 artifact=Artifact(
                     digest=f"{artifact['name']}@{artifact['digest']}",
                     raw=artifact,
-                    name=artifact["name"],
+                    name=image,
                 ),
                 object={
                     "purl": alert.get("purl"),
