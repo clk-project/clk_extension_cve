@@ -481,13 +481,12 @@ class CVEConfig:
         self._reporters = reporters
         self.reporter = [reporter.name for reporter in self._reporters]
         self._aws_profile = None
+        self._state = {"version": "0.0.1"}
 
     @property
     def aws_profile(self):
         if not self._aws_profile:
             self._aws_profile = self.state.get("aws", {}).get("profile")
-        if not self._aws_profile:
-            raise NotImplementedError
         return self._aws_profile
 
     @aws_profile.setter
@@ -565,7 +564,7 @@ class CVEConfig:
 
     @reporter.setter
     def reporter(self, reporter_names):
-        reporter_names = reporter_names or self.state.get("reporters")
+        reporter_names = reporter_names or self.state.get("reporters", [])
         self.reporters = [
             reporter for reporter in self._reporters if reporter.name in reporter_names
         ]
@@ -580,19 +579,22 @@ class CVEConfig:
         if self._path is None:
             return
         if self._path.exists():
-            self.state = yaml.load(self._path)
+            self._state = yaml.load(self._path)
         else:
-            self.state = {"version": "0.0.1"}
             self.save()
 
+    @property
+    def state(self):
+        return self._state
+
     def save(self):
-        yaml.dump(self.state, self.path)
+        yaml.dump(self._state, self.path)
 
 
 @group()
 @option(
     "--path",
-    default=Path(config.project) / "cve.yaml",
+    default=(Path(config.project) / "cve.yaml") if config.project else None,
     expose_class=CVEConfig,
     type=Path,
     help="Where the config file resides",
