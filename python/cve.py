@@ -141,12 +141,17 @@ class ScoutReporter(AlertReporter):
         ):
             _aws_docker_login(config.project, config.cve.aws_profile)
 
-        @cache_disk(expire=360000)
+        # depending on whether I'm use to scan mutable tags (like :testing) or
+        # immutable ones (like v1.0.1), I may want to customize the expiration
+        # time
+        expiration = config.cve.state.get("scout", {}).get("expiration", 3600 * 12)
+
+        @cache_disk(expire=expiration)
         def _scout_reports(project, image):
             LOGGER.info(f"Getting scout information for {image}")
             return json.loads(check_output(f"docker scout cves {image} --format sbom"))
 
-        @cache_disk(expire=360000)
+        @cache_disk(expire=expiration)
         def _scout_recommendations(project, image):
             LOGGER.info(f"Getting scout recommendations for {image}")
             return check_output(f"docker scout recommendations {image}")
