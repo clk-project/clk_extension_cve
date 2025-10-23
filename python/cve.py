@@ -76,7 +76,7 @@ class ScoutReporter(AlertReporter):
 
             @cache_disk(expire=36000)
             def _check_scout_present():
-                return check_output(["docker scout", "-h"])
+                return check_output(["docker", "scout", "-h"])
 
             if redo_check:
                 _check_scout_present.drop()
