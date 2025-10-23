@@ -692,7 +692,9 @@ def _open(limit):
     cve: CVEConfig = config.cve
     cve.limit = limit
     for reporter, alert in cve.walk():
-        LOGGER.info(f"{reporter.name}: {alert.report.id}")
+        LOGGER.info(
+            f"{reporter.name}: {alert.report.id} found in {alert.artifact.name}"
+        )
         webbrowser.open(alert.report.url)
 
 
