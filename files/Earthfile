@@ -1,0 +1,10 @@
+VERSION 0.8
+
+semgrep:
+    FROM semgrep/semgrep:latest
+    ARG --required url
+    GIT CLONE "${url}" /src
+    WORKDIR /src
+    ARG SEMGREP_APP_TOKEN
+    RUN semgrep --json-output semgrep.json
+    SAVE ARTIFACT semgrep.json AS LOCAL semgrep.json

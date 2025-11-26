@@ -474,6 +474,58 @@ class AWSReporter(AlertReporter):
                 )
 
 
+class SemgrepReporter(AlertReporter):
+    name = "semgrep"
+    semgrep_app_token = "SEMGREP_APP_TOKEN"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def sanity_check(self, redo_check=False):
+        if not get_secret(self.semgrep_app_token):
+            LOGGER.warning(
+                f"No {self.semgrep_app_token} provided."
+                " semgrep will only use the community rules only."
+            )
+
+    def alerts(self) -> Iterator[Alert]:
+        files_dir = Path(__file__).parent.parent / "files"
+
+        @cache_disk(expire=36000)
+        def _semgrep_call(url):
+            cmd = ["earthly", f"{files_dir}+semgrep", "--url", url]
+            if token := get_secret(self.semgrep_app_token):
+                cmd += [f"--{self.semgrep_app_token}={token}"]
+            call(cmd)
+
+        if config.cve.refresh:
+            _semgrep_call.drop(config.cve.state["semgrep"]["url"])
+
+        semgrep_report_file = files_dir / "semgrep.json"
+        _semgrep_call(config.cve.state["semgrep"]["url"])
+        semgrep_report = json.loads(Path(semgrep_report_file).read_text())
+        for result in semgrep_report["results"]:
+            extra = result["extra"]
+            metadata = extra["metadata"]
+            for cwe in metadata["cwe"]:
+                artifact_name = result["path"]
+                start = result["start"]["line"]
+                end = result["end"]["line"]
+                if start != end:
+                    artifact_name += f":{start}-{end}"
+                else:
+                    artifact_name += f":{start}"
+
+                yield Alert(
+                    Artifact(result["path"], extra["lines"], artifact_name),
+                    result["extra"]["lines"],
+                    Report(cwe, metadata["source"]),
+                    metadata["impact"].lower(),
+                    extra["message"],
+                    result,
+                )
+
+
 yaml = ruamel.yaml.YAML()
 yaml.default_flow_style = False
 
@@ -482,6 +534,7 @@ reporters = [
     DependabotReporter(),
     ProjectDiscoveryReporter(),
     ScoutReporter(),
+    SemgrepReporter(),
 ]
 
 
