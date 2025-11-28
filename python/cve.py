@@ -565,7 +565,7 @@ class CVEConfig:
                     yield reporter, alert
                     self.limit -= 1
                     if self.limit <= 0:
-                        break
+                        return
 
     def sanity_checks(self, redo_checks=False):
         for reporter in self.reporters:
