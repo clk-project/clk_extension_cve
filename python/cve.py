@@ -519,7 +519,7 @@ class SemgrepReporter(AlertReporter):
                 yield Alert(
                     Artifact(result["path"], extra["lines"], artifact_name),
                     result["extra"]["lines"],
-                    Report(cwe, metadata["source"]),
+                    Report(cwe.split(":")[0], metadata["source"]),
                     metadata["impact"].lower(),
                     extra["message"],
                     result,
