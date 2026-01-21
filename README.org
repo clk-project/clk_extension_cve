@@ -1,0 +1,94 @@
+#+language: en
+
+
+A tool to aggregate cve and other stuff like that from several sources.
+
+* quickstart
+  :PROPERTIES:
+  :CREATED:  [2026-01-21 11:22]
+  :END:
+
+  #+BEGIN_SRC bash :results none :exports code 
+    clk extension install cve
+  #+END_SRC
+  
+  Write cve.yaml at the root of your project with something like
+
+  #+BEGIN_SRC yaml :results verbatim :exports both 
+version: 0.0.1
+reporters:
+    - scout
+    - semgrep
+semgrep:
+  url: https://github.com/clk-project/clk
+scout:
+  registry:
+    provider: aws
+    servers:
+      - <theregistry>
+  images:
+    - <theregistry>/someimage1:latest
+    - <theregistry>/someimage2:latest
+dismissed-severities:
+  - low
+  - moderate
+  - medium
+  - info
+dismissed-artifact-names-report:
+    # zlib versions up to and including 1.3.1.2 contain a global buffer overflow in the untgz utility
+    <theregistry>/someimage2:latest:
+        why: not concerned
+        valid_until: '2025-11-24 00:00:00'
+
+dismissed-reports:
+    CVE-2025-22871:
+        why: Very unlikely to bother me
+  #+END_SRC
+  
+  The call
+  #+BEGIN_SRC bash :results verbatim :exports both 
+    clk cve stats
+  #+END_SRC
+
+  #+BEGIN_SRC bash :results verbatim :exports both 
+    clk cve doctor
+  #+END_SRC
+
+  #+BEGIN_SRC bash :results verbatim :exports both 
+    clk cve show | jless
+  #+END_SRC
+
+  For the time being, show exposes the whole json structures, with some
+  transformations to make them look alike. I actually find those quite useful in
+  their raw form. I will likely create more porcelain on top of that plumbing,
+  but it already provide much value the way it is.
+ 
+
+* rationale
+  :PROPERTIES:
+  :CREATED:  [2026-01-21 11:19]
+  :END:
+
+I'm quite new to the subject, and I will likely figure out that this tool is
+most likely not needed when I gain experience.
+
+Yet, I was surprise to find out that all the tools like github, semgrep, scout,
+sonarcloud come with their own dashboards and I found nothing that gave me a
+view of all my issues at the same place.
+
+I quickly got tired of navigating into all those dashboards that deal with very
+similar things but call them and organize them differently. 
+
+I wanted 
+- a way to have a look at ALL the cves that involved my project
+- the "dismiss" feature that some dashboards already provide for CVE that I don't actually care about
+- a way to identify overlapping CVEs and merge them. The same CVE can be
+  reported by aws, scout or dependabot, I don't want to have to read it thrice
+  and possibly dismiss it thrice
+- a way to focus on more urgent CVEs first, not being drowned into a flood of
+  informative alerts
+
+
+Then, clk cve was born. It does not provide all that yet, and I will likely
+change my expectations with experience, but it already helps getting a unified
+dashboard of what may harm my project.
