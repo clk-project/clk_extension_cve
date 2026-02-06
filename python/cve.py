@@ -177,8 +177,8 @@ class ScoutReporter(AlertReporter):
 
         def list_images():
             scout = config.cve.state.get("scout", {})
-            if scout.get("list-images"):
-                return check_output(split("clk nd list-images")).splitlines()
+            if command := scout.get("list-images"):
+                return check_output(split(command)).splitlines()
             else:
                 return scout.get("images", [])
 
