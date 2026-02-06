@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
 
+import fnmatch
 import json
 import re
 import textwrap
@@ -179,8 +180,98 @@ class ScoutReporter(AlertReporter):
             scout = config.cve.state.get("scout", {})
             if command := scout.get("list-images"):
                 return check_output(split(command)).splitlines()
+            elif scout.get("dynamic-scan"):
+                return list_images_dynamically(scout)
             else:
                 return scout.get("images", [])
+
+        def list_images_dynamically(scout):
+            """Dynamically discover images based on glob patterns.
+
+            Dispatches to provider-specific implementation based on registry provider.
+            """
+            provider = scout.get("registry", {}).get("provider")
+            if provider == "aws":
+                all_images = _list_all_images_aws(scout)
+            else:
+                raise ValueError(
+                    f"Dynamic scan not supported for provider: {provider}. "
+                    "Supported providers: aws"
+                )
+            return _filter_images(scout, all_images)
+
+        def _list_all_images_aws(scout):
+            """AWS ECR specific: list all images with their full names."""
+
+            @cache_disk(expire=expiration)
+            def _list_repositories(profile):
+                LOGGER.info(f"Listing repositories for profile {profile}")
+                command = ["aws"]
+                if profile:
+                    command += ["--profile", profile]
+                command += ["ecr", "describe-repositories"]
+                return json.loads(check_output(command))
+
+            @cache_disk(expire=expiration)
+            def _list_image_tags(profile, repository):
+                LOGGER.info(f"Listing tags for repository {repository}")
+                command = ["aws"]
+                if profile:
+                    command += ["--profile", profile]
+                command += ["ecr", "describe-images", "--repository-name", repository]
+                return json.loads(check_output(command))
+
+            repositories = _list_repositories(config.cve.aws_profile)
+            servers = scout.get("registry", {}).get("servers", [])
+            server = servers[0] if servers else ""
+
+            images = []
+            for repo in repositories.get("repositories", []):
+                repo_name = repo["repositoryName"]
+                try:
+                    image_details = _list_image_tags(config.cve.aws_profile, repo_name)
+                    for image in image_details.get("imageDetails", []):
+                        for tag in image.get("imageTags", []):
+                            full_image = (
+                                f"{server}/{repo_name}:{tag}"
+                                if server
+                                else f"{repo_name}:{tag}"
+                            )
+                            images.append(full_image)
+                except Exception as e:
+                    LOGGER.warning(
+                        f"Failed to list tags for repository {repo_name}: {e}"
+                    )
+            return images
+
+        def _filter_images(scout, all_images):
+            """Filter images based on include/exclude glob patterns.
+
+            Args:
+                scout: Scout configuration dict
+                all_images: List of full image names (server/repo:tag)
+            """
+            dynamic_config = scout.get("dynamic-scan", {})
+            include_patterns = dynamic_config.get("include-images", ["*"])
+            exclude_patterns = dynamic_config.get("exclude-images", [])
+
+            def matches_any(value, patterns):
+                return any(fnmatch.fnmatch(value, pattern) for pattern in patterns)
+
+            filtered = []
+            for image in all_images:
+                if not matches_any(image, include_patterns):
+                    LOGGER.debug(
+                        f"Skipping image {image}: doesn't match include patterns"
+                    )
+                    continue
+                if matches_any(image, exclude_patterns):
+                    LOGGER.debug(f"Skipping image {image}: matches exclude patterns")
+                    continue
+                filtered.append(image)
+                LOGGER.info(f"Including image: {image}")
+
+            return filtered
 
         def list_vulnerabilities(image):
             return _scout_reports(config.project, image).get("vulnerabilities", [])
