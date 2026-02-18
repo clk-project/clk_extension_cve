@@ -690,18 +690,19 @@ class CVEConfig:
         if self.not_severity and alert.severity in self.not_severity:
             return True
 
+    def is_dismissed_by_severity(self, alert):
+        return alert.severity in config.cve.state.get("dismissed-severities", [])
+
     def is_dismissed_by_config(self, reporter, alert):
         if f"{alert.artifact.name}-{alert.report.id}" in config.cve.state.get(
             "dismissed-artifact-names-report", []
         ):
             return True
-        if alert.severity in config.cve.state.get("dismissed-severities", []):
+        if self.is_dismissed_by_severity(alert):
             return True
         if alert.artifact.digest in config.cve.state.get("dismissed-artifacts", []):
             return True
         if alert.artifact.name in config.cve.state.get("dismissed-artifact-names", []):
-            return True
-        if alert.severity in config.cve.state.get("dismissed-severities", []):
             return True
         report_dismissal = config.cve.state.get("dismissed-reports", {}).get(
             alert.report.id, None
@@ -710,6 +711,17 @@ class CVEConfig:
             return False
         else:
             return self.check_valid_until(report_dismissal)
+
+    def count_dismissed_by_severity(self):
+        """Count alerts dismissed by severity level."""
+        counts = defaultdict(int)
+        for reporter in self.reporters:
+            for alert in reporter.alerts():
+                if not self.is_dismissed_by_command_line(
+                    reporter, alert
+                ) and self.is_dismissed_by_severity(alert):
+                    counts[alert.severity] += 1
+        return counts
 
     @property
     def reporter(self):
@@ -846,10 +858,10 @@ def _open(limit):
 @flag("--show-reports", help="Also show the reports")
 def stats(show_reports):
     """Get a 100 feet view of the alerts."""
+    cve: CVEConfig = config.cve
     reports = defaultdict(int)
     severity = defaultdict(int)
     artifacts = defaultdict(int)
-    cve: CVEConfig = config.cve
     for reporter, alert in cve.walk():
         reports[alert.report.id] += 1
         artifacts[f"{reporter.name}: {alert.artifact.digest}"] += 1
@@ -863,6 +875,14 @@ def stats(show_reports):
     print(json_dumps(artifacts))
     print(f"severity ({len(severity)})")
     print(json_dumps(severity))
+    if dismissed := cve.count_dismissed_by_severity():
+        for sev, count in dismissed.items():
+            LOGGER.warning(f"{count} alerts dismissed by severity '{sev}'")
+    for report_id, data in cve.state.get("dismissed-reports", {}).items():
+        if "valid_until" not in data:
+            LOGGER.warning(
+                f"Dismissal for report '{report_id}' has no valid_until date"
+            )
 
 
 @cve.command()
@@ -882,11 +902,12 @@ def stats(show_reports):
 )
 def show(export_org, limit, short, shorter):
     """Dump those in reports useful for taking further actions."""
+    cve: CVEConfig = config.cve
     short = short or shorter
     indent = 2
     if export_org:
         print(f"{indent * '*'} report")
-    for reporter, alert in config.cve.walk():
+    for reporter, alert in cve.walk():
         limit = limit - 1
         if limit < 0:
             return
@@ -928,6 +949,14 @@ def show(export_org, limit, short, shorter):
                 )
         else:
             print(json_dumps(data))
+    if dismissed := cve.count_dismissed_by_severity():
+        for sev, count in dismissed.items():
+            LOGGER.warning(f"{count} alerts dismissed by severity '{sev}'")
+    for report_id, data in cve.state.get("dismissed-reports", {}).items():
+        if "valid_until" not in data:
+            LOGGER.warning(
+                f"Dismissal for report '{report_id}' has no valid_until date"
+            )
 
 
 @cve.command()
@@ -939,6 +968,13 @@ def doctor(refresh):
         "Force ignore filters and use ALL reporters or the doctor will say wrong results"
     )
     config.cve.ignore_config_filters = True
+
+    # Warn about dismissals without valid_until
+    for report_id, data in cve.state.get("dismissed-reports", {}).items():
+        if "valid_until" not in data:
+            LOGGER.warning(
+                f"Dismissal for report '{report_id}' has no valid_until date"
+            )
 
     current_reports = set(alert.report.id for _, alert in cve.walk())
     dismissed_reports = set()
