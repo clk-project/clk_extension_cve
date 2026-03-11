@@ -8,6 +8,8 @@ import textwrap
 import webbrowser
 from collections import defaultdict
 from datetime import datetime
+
+from dateutil.relativedelta import relativedelta
 from pathlib import Path
 from shlex import split
 from typing import Iterator, Tuple
@@ -961,7 +963,11 @@ def show(export_org, limit, short, shorter):
 
 @cve.command()
 @flag("--refresh", help="Don't use the cache")
-def doctor(refresh):
+@flag(
+    "--fix-missing-valid-until",
+    help="Set valid_until to one month from now for dismissals missing it",
+)
+def doctor(refresh, fix_missing_valid_until):
     """Check for some incoherence."""
     cve: CVEConfig = config.cve
     LOGGER.debug(
@@ -972,9 +978,19 @@ def doctor(refresh):
     # Warn about dismissals without valid_until
     for report_id, data in cve.state.get("dismissed-reports", {}).items():
         if "valid_until" not in data:
-            LOGGER.warning(
-                f"Dismissal for report '{report_id}' has no valid_until date"
-            )
+            if fix_missing_valid_until:
+                one_month_from_now = datetime.now() + relativedelta(months=1)
+                data["valid_until"] = one_month_from_now.strftime("%Y-%m-%d %H:%M:%S")
+                LOGGER.info(
+                    f"Set valid_until for report '{report_id}' to {data['valid_until']}"
+                )
+            else:
+                LOGGER.warning(
+                    f"Dismissal for report '{report_id}' has no valid_until date"
+                )
+
+    if fix_missing_valid_until:
+        cve.save()
 
     current_reports = set(alert.report.id for _, alert in cve.walk())
     dismissed_reports = set()
